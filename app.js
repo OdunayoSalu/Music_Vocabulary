@@ -895,6 +895,7 @@ function createEmptyReference() {
     id: createId("ref"),
     url: "",
     title: "",
+    notes: "",
     startSeconds: null,
   };
 }
@@ -905,14 +906,14 @@ function getCardReferences(card) {
     : [];
   const normalizedReferences = references
     .map(normalizeReference)
-    .filter((reference) => reference.url || reference.title);
+    .filter((reference) => reference.url || reference.title || reference.notes);
 
   if (normalizedReferences.length > 0) {
     return normalizedReferences;
   }
 
   const sourceReference = normalizeReference(card.source);
-  return sourceReference.url || sourceReference.title ? [sourceReference] : [];
+  return sourceReference.url || sourceReference.title || sourceReference.notes ? [sourceReference] : [];
 }
 
 function normalizeReference(reference = {}) {
@@ -922,6 +923,7 @@ function normalizeReference(reference = {}) {
     id: reference.id || createId("ref"),
     url,
     title: reference.title ?? "",
+    notes: reference.notes ?? "",
     startSeconds: reference.startSeconds ?? parseYouTubeStartSeconds(url),
   };
 }
@@ -1104,7 +1106,8 @@ function renderReferenceWizardStep() {
     <div class="reference-editor">
       <div class="form-grid">
         ${inputField("wizard-reference-url", "YouTube/source URL", reference.url, "url")}
-        ${inputField("wizard-reference-title", "Source title or note", reference.title)}
+        ${inputField("wizard-reference-title", "Reference title", reference.title)}
+        ${inputField("wizard-reference-notes", "Notes", reference.notes)}
       </div>
       <div class="button-row">
         <button class="secondary-action" type="button" data-prev-reference ${wizardReferenceIndex === 0 ? "disabled" : ""}>Previous reference</button>
@@ -1343,6 +1346,11 @@ function bindWizardStepEvents() {
   bindInput("wizard-reference-title", (event) => {
     ensureWizardReference();
     wizardDraft.references[wizardReferenceIndex].title = event.target.value;
+    wizardDraft.source = wizardDraft.references[0] ?? createEmptyReference();
+  });
+  bindInput("wizard-reference-notes", (event) => {
+    ensureWizardReference();
+    wizardDraft.references[wizardReferenceIndex].notes = event.target.value;
     wizardDraft.source = wizardDraft.references[0] ?? createEmptyReference();
   });
   bindInput("wizard-new-list", (event) => (wizardDraft.newListName = event.target.value));
@@ -1590,9 +1598,10 @@ function normalizeWizardReferences() {
       ...reference,
       url: reference.url.trim(),
       title: reference.title.trim(),
+      notes: reference.notes.trim(),
       startSeconds: parseYouTubeStartSeconds(reference.url),
     }))
-    .filter((reference) => reference.url || reference.title);
+    .filter((reference) => reference.url || reference.title || reference.notes);
 }
 
 async function saveWizardCard() {
@@ -2208,11 +2217,12 @@ function renderReferenceDetailSection(card) {
     ${embedUrl ? `
       <iframe class="youtube-frame" id="source-player-${escapeHtml(card.id)}-${detailReferenceIndex}" src="${escapeHtml(embedUrl)}" title="${escapeHtml(reference.title || card.title)}" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
     ` : `<p>This reference is saved, but it is not an embeddable YouTube link.</p>`}
+    ${reference.notes ? `<p class="reference-notes">${escapeHtml(reference.notes)}</p>` : ""}
     <div class="reference-actions">
       <button class="secondary-action" type="button" data-reference-prev ${detailReferenceIndex === 0 ? "disabled" : ""}>Previous</button>
       <button class="secondary-action source-restart" type="button" data-restart-source="${escapeHtml(card.id)}" data-reference-index="${detailReferenceIndex}" ${embedUrl ? "" : "disabled"}>Restart clip</button>
       <button class="secondary-action" type="button" data-reference-next ${detailReferenceIndex === references.length - 1 ? "disabled" : ""}>Next</button>
-      ${reference.url ? `<a class="secondary-action source-link-button" href="${escapeHtml(reference.url)}" target="_blank" rel="noreferrer">${escapeHtml(reference.title || "Open source")}</a>` : ""}
+      ${reference.url ? `<a class="secondary-action source-link-button" href="${escapeHtml(reference.url)}" target="_blank" rel="noreferrer">Open Source</a>` : ""}
     </div>
   `;
 }

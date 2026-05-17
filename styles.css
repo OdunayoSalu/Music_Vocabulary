@@ -815,6 +815,13 @@ p {
   margin-top: 8px;
 }
 
+.reference-notes {
+  margin: 8px 0 0;
+  color: #242424;
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
 .reference-actions {
   grid-template-columns: repeat(4, minmax(0, auto));
   align-items: center;
