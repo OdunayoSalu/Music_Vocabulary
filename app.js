@@ -821,6 +821,9 @@ function createEmptyWizardDraft() {
       varyKey: true,
       varyTempo: true,
     },
+    rhythmVariation: {
+      level: "off",
+    },
     title: "",
     aliases: [],
     listIds: [],
@@ -874,6 +877,11 @@ function createWizardDraftFromCard(card) {
     variation: {
       varyKey: card.variation?.varyKey ?? true,
       varyTempo: card.variation?.varyTempo ?? true,
+    },
+    rhythmVariation: {
+      level: ["off", "simple", "medium"].includes(card.rhythmVariation?.level)
+        ? card.rhythmVariation.level
+        : "off",
     },
     title: card.title ?? "",
     aliases: card.aliases ?? [],
@@ -1024,6 +1032,12 @@ function getWizardStepHtml() {
       <div class="choice-grid">
         <button class="choice-button ${allVariationsAre("fixed") ? "active" : ""}" type="button" data-variation="fixed">Fixed root position</button>
         <button class="choice-button ${allVariationsAre("allow-inversions") ? "active" : ""}" type="button" data-variation="allow-inversions">Allow inversions later</button>
+      </div>
+      <div class="wizard-step-copy compact-copy"><h3>Rhythm variation</h3><p>Let playback reattack chords in controlled rhythmic patterns while keeping each chord's total length.</p></div>
+      <div class="choice-grid">
+        <button class="choice-button ${wizardDraft.rhythmVariation.level === "off" ? "active" : ""}" type="button" data-rhythm-variation="off">Off</button>
+        <button class="choice-button ${wizardDraft.rhythmVariation.level === "simple" ? "active" : ""}" type="button" data-rhythm-variation="simple">Simple</button>
+        <button class="choice-button ${wizardDraft.rhythmVariation.level === "medium" ? "active" : ""}" type="button" data-rhythm-variation="medium">Medium</button>
       </div>
     `;
   }
@@ -1388,6 +1402,13 @@ function bindWizardStepEvents() {
     });
   });
 
+  document.querySelectorAll("[data-rhythm-variation]").forEach((button) => {
+    button.addEventListener("click", () => {
+      wizardDraft.rhythmVariation.level = button.dataset.rhythmVariation;
+      renderWizard();
+    });
+  });
+
   document.querySelectorAll("[data-variation]").forEach((button) => {
     button.addEventListener("click", () => {
       wizardDraft.chords = wizardDraft.chords.map((chord) => ({
@@ -1652,6 +1673,11 @@ async function saveWizardCard() {
     variation: {
       varyKey: Boolean(wizardDraft.variation.varyKey),
       varyTempo: Boolean(wizardDraft.variation.varyTempo),
+    },
+    rhythmVariation: {
+      level: ["off", "simple", "medium"].includes(wizardDraft.rhythmVariation.level)
+        ? wizardDraft.rhythmVariation.level
+        : "off",
     },
     chordDurations: wizardDraft.chords.map((chord) => getRhythmBeatTotal(chord.rhythms) || Number(chord.duration) || 4),
     chords,
@@ -2954,6 +2980,7 @@ function createPlaybackContext(card) {
   return {
     key: pickRandom(allowedKeys),
     tempo: card.variation?.varyTempo ? randomInteger(tempoMin, tempoMax) : defaultTempo,
+    rhythmPlan: createRhythmVariationPlan(card),
   };
 }
 
@@ -2965,12 +2992,88 @@ function getAllowedPlaybackKeys(card) {
   return allowedKeys;
 }
 
+function createRhythmVariationPlan(card) {
+  const level = card.rhythmVariation?.level ?? "off";
+
+  if (!["simple", "medium"].includes(level)) {
+    return null;
+  }
+
+  return card.chords.map((chord, chordIndex) => {
+    const totalBeats = getChordTotalBeatsForVariation(card, chord, chordIndex);
+
+    return pickRandom(getRhythmVariationCandidates(totalBeats, level));
+  });
+}
+
+function getChordTotalBeatsForVariation(card, chord, chordIndex) {
+  if (Array.isArray(chord.rhythms) && chord.rhythms.length > 0) {
+    return getRhythmBeatTotal(chord.rhythms);
+  }
+
+  return chordDurationToBeats(card.chordDurations?.[chordIndex], card.timeSignature);
+}
+
+function getRhythmVariationCandidates(totalBeats, level) {
+  const beats = roundBeatValue(Number(totalBeats) || 1);
+  const candidates = [[beats]];
+
+  if (beats < 1.5) {
+    return candidates;
+  }
+
+  addVariationCandidate(candidates, [beats / 2, beats / 2], beats);
+
+  if (beats >= 2) {
+    addVariationCandidate(candidates, [beats - 1, 1], beats);
+    addVariationCandidate(candidates, [1, beats - 1], beats);
+  }
+
+  if (level === "medium") {
+    if (beats >= 3) {
+      addVariationCandidate(candidates, [1, 1, beats - 2], beats);
+      addVariationCandidate(candidates, [beats - 2, 1, 1], beats);
+    }
+
+    if (beats >= 2) {
+      addVariationCandidate(candidates, [1.5, 0.5, beats - 2], beats);
+      addVariationCandidate(candidates, [0.5, 1.5, beats - 2], beats);
+    }
+
+    if (beats >= 4) {
+      addVariationCandidate(candidates, [1, 1, 1, beats - 3], beats);
+      addVariationCandidate(candidates, [2, 1, 1], beats);
+      addVariationCandidate(candidates, [1, 1, 2], beats);
+    }
+  }
+
+  return candidates;
+}
+
+function addVariationCandidate(candidates, values, expectedTotal) {
+  const normalizedValues = values
+    .map(roundBeatValue)
+    .filter((value) => value >= 0.5);
+  const total = roundBeatValue(normalizedValues.reduce((sum, value) => sum + value, 0));
+
+  if (normalizedValues.length === values.length && total === roundBeatValue(expectedTotal)) {
+    candidates.push(normalizedValues);
+  }
+}
+
+function roundBeatValue(value) {
+  return Math.round(value * 4) / 4;
+}
+
 function getPlaybackEvents(card, beatMs, playbackContext) {
   const events = [];
 
   card.chords.forEach((chord, chordIndex) => {
     const inversion = getPlaybackInversion(chord);
-    const rhythms = Array.isArray(chord.rhythms) && chord.rhythms.length > 0
+    const variationBeats = playbackContext.rhythmPlan?.[chordIndex];
+    const rhythms = Array.isArray(variationBeats) && variationBeats.length > 0
+      ? variationBeats.map((beats) => ({ beats, tiedFromPrevious: false }))
+      : Array.isArray(chord.rhythms) && chord.rhythms.length > 0
       ? chord.rhythms
       : [{ beats: chordDurationToBeats(card.chordDurations[chordIndex], card.timeSignature), tiedFromPrevious: false }];
 
@@ -3053,7 +3156,9 @@ function stopScheduledPlayback() {
 }
 
 function chordToNotes(chord, card, playbackEvent = {}) {
-  const rootMidi = chordRootToMidi(chord.playback, playbackEvent.key || card.defaultKey);
+  const rootMidi = chordRootToMidi(chord.playback, playbackEvent.key || card.defaultKey, {
+    keepScaleOctave: Boolean(playbackEvent.orientation),
+  });
   const qualityIntervals = CHORD_QUALITIES[chord.playback.quality] ?? CHORD_QUALITIES.major;
   const extensionIntervals = chord.playback.extensions
     .map((extension) => EXTENSION_INTERVALS[extension])
@@ -3063,13 +3168,13 @@ function chordToNotes(chord, card, playbackEvent = {}) {
   return intervals.map((interval) => midiToNoteName(rootMidi + interval));
 }
 
-function chordRootToMidi(playback, key) {
+function chordRootToMidi(playback, key, options = {}) {
   const keyMidi = noteNameToMidi(`${key}4`);
   const degreeOffset = MAJOR_SCALE[playback.degree - 1] ?? 0;
   const accidentalOffset = playback.accidental === "flat" ? -1 : playback.accidental === "sharp" ? 1 : 0;
   let rootMidi = keyMidi + degreeOffset + accidentalOffset;
 
-  if (rootMidi >= keyMidi + 7) {
+  if (!options.keepScaleOctave && rootMidi >= keyMidi + 7) {
     rootMidi -= 12;
   }
 
