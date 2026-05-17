@@ -41,6 +41,7 @@ const trainingPromptTitle = document.querySelector("#training-prompt-title");
 const answerTitle = document.querySelector("#answer-title");
 const answerAliases = document.querySelector("#answer-aliases");
 const answerChords = document.querySelector("#answer-chords");
+const answerReference = document.querySelector("#answer-reference");
 const wizardProgress = document.querySelector("#wizard-progress");
 const wizardStep = document.querySelector("#wizard-step");
 const wizardBackButton = document.querySelector("#wizard-back");
@@ -342,6 +343,7 @@ let chordEntryIndex = 0;
 let rhythmChordIndex = 0;
 let wizardReferenceIndex = 0;
 let detailReferenceIndex = 0;
+let trainingReferenceIndex = 0;
 let dotNextRhythm = false;
 let tieNextRhythm = false;
 let rhythmMessage = "";
@@ -2188,8 +2190,10 @@ function renderCardDetail() {
   renderPlaybackButtons();
 }
 
-function renderReferenceDetailSection(card) {
+function renderReferenceDetailSection(card, options = {}) {
   const references = getCardReferences(card);
+  const context = options.context ?? "detail";
+  const selectedIndex = context === "training" ? trainingReferenceIndex : detailReferenceIndex;
 
   if (references.length === 0) {
     return `
@@ -2198,30 +2202,35 @@ function renderReferenceDetailSection(card) {
     `;
   }
 
-  detailReferenceIndex = clampNumber(detailReferenceIndex, 0, references.length - 1);
-  const reference = references[detailReferenceIndex];
+  const referenceIndex = clampNumber(selectedIndex, 0, references.length - 1);
+  if (context === "training") {
+    trainingReferenceIndex = referenceIndex;
+  } else {
+    detailReferenceIndex = referenceIndex;
+  }
+  const reference = references[referenceIndex];
   const embedUrl = getYouTubeEmbedUrl(reference.url, reference.startSeconds);
 
   return `
     <div class="reference-detail-heading">
       <h3>Reference</h3>
-      <span class="pill">${detailReferenceIndex + 1} of ${references.length}</span>
+      <span class="pill">${referenceIndex + 1} of ${references.length}</span>
     </div>
     <div class="reference-tabs detail-reference-tabs" aria-label="Card references">
       ${references.map((item, index) => `
-        <button class="reference-tab ${index === detailReferenceIndex ? "active" : ""}" type="button" data-detail-reference="${index}">
+        <button class="reference-tab ${index === referenceIndex ? "active" : ""}" type="button" data-reference-context="${context}" data-detail-reference="${index}">
           ${escapeHtml(getReferenceTabLabel(item, index))}
         </button>
       `).join("")}
     </div>
     ${embedUrl ? `
-      <iframe class="youtube-frame" id="source-player-${escapeHtml(card.id)}-${detailReferenceIndex}" src="${escapeHtml(embedUrl)}" title="${escapeHtml(reference.title || card.title)}" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+      <iframe class="youtube-frame" id="source-player-${context}-${escapeHtml(card.id)}-${referenceIndex}" src="${escapeHtml(embedUrl)}" title="${escapeHtml(reference.title || card.title)}" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
     ` : `<p>This reference is saved, but it is not an embeddable YouTube link.</p>`}
     ${reference.notes ? `<p class="reference-notes">${escapeHtml(reference.notes)}</p>` : ""}
     <div class="reference-actions">
-      <button class="secondary-action" type="button" data-reference-prev ${detailReferenceIndex === 0 ? "disabled" : ""}>Previous</button>
-      <button class="secondary-action source-restart" type="button" data-restart-source="${escapeHtml(card.id)}" data-reference-index="${detailReferenceIndex}" ${embedUrl ? "" : "disabled"}>Restart clip</button>
-      <button class="secondary-action" type="button" data-reference-next ${detailReferenceIndex === references.length - 1 ? "disabled" : ""}>Next</button>
+      <button class="secondary-action" type="button" data-reference-context="${context}" data-reference-prev ${referenceIndex === 0 ? "disabled" : ""}>Previous</button>
+      <button class="secondary-action source-restart" type="button" data-restart-source="${escapeHtml(card.id)}" data-reference-context="${context}" data-reference-index="${referenceIndex}" ${embedUrl ? "" : "disabled"}>Restart clip</button>
+      <button class="secondary-action" type="button" data-reference-context="${context}" data-reference-next ${referenceIndex === references.length - 1 ? "disabled" : ""}>Next</button>
       ${reference.url ? `<a class="secondary-action source-link-button" href="${escapeHtml(reference.url)}" target="_blank" rel="noreferrer">Open Source</a>` : ""}
     </div>
   `;
@@ -2390,12 +2399,12 @@ function closeDeleteModal() {
   document.querySelector(".modal-backdrop")?.remove();
 }
 
-function restartSourceClip(cardId, referenceIndex = detailReferenceIndex) {
+function restartSourceClip(cardId, referenceIndex = detailReferenceIndex, context = "detail") {
   const card = library.cards.find((item) => item.id === cardId);
   const references = card ? getCardReferences(card) : [];
   const index = Number.isFinite(Number(referenceIndex)) ? clampNumber(Number(referenceIndex), 0, Math.max(0, references.length - 1)) : 0;
   const reference = references[index];
-  const iframe = document.querySelector(`#source-player-${CSS.escape(cardId)}-${index}`);
+  const iframe = document.querySelector(`#source-player-${CSS.escape(context)}-${CSS.escape(cardId)}-${index}`);
 
   if (!card || !reference || !iframe?.contentWindow) {
     return;
@@ -2574,6 +2583,8 @@ function renderTrainingCard() {
   answerTitle.textContent = "";
   answerAliases.textContent = "";
   answerChords.innerHTML = "";
+  answerReference.innerHTML = "";
+  trainingReferenceIndex = 0;
   revealAnswerButton.hidden = false;
   trainingPlayButton.hidden = false;
   orientKeyButton.hidden = false;
@@ -2686,7 +2697,31 @@ function revealTrainingAnswer() {
     pill.innerHTML = renderChordSymbol(chord);
     answerChords.append(pill);
   });
+  renderTrainingReferenceSection(currentCard);
   answerPanel.hidden = false;
+}
+
+function renderTrainingReferenceSection(card) {
+  if (!answerReference) {
+    return;
+  }
+
+  answerReference.innerHTML = renderReferenceDetailSection(card, {
+    context: "training",
+    selectedIndex: trainingReferenceIndex,
+  });
+}
+
+function renderActiveReferenceContext(context) {
+  if (context === "training") {
+    const currentCard = getCurrentTrainingCard();
+    if (currentCard && !answerPanel.hidden) {
+      renderTrainingReferenceSection(currentCard);
+    }
+    return;
+  }
+
+  renderCardDetail();
 }
 
 function finishTrainingSession() {
@@ -2696,6 +2731,7 @@ function finishTrainingSession() {
   trainingCard.hidden = true;
   sessionProgressStrip.hidden = true;
   sessionDetails.hidden = true;
+  answerReference.innerHTML = "";
   currentTrainingPlayback = null;
   showView("train");
 }
@@ -2712,6 +2748,7 @@ function renderSessionComplete() {
   sessionProgressStrip.hidden = true;
   answerPanel.hidden = true;
   sessionDetails.hidden = true;
+  answerReference.innerHTML = "";
 }
 
 function toggleSessionDetails() {
@@ -3795,29 +3832,50 @@ document.addEventListener("click", (event) => {
 
   const sourceRestartButton = event.target.closest("[data-restart-source]");
   if (sourceRestartButton) {
-    restartSourceClip(sourceRestartButton.dataset.restartSource, sourceRestartButton.dataset.referenceIndex);
+    restartSourceClip(
+      sourceRestartButton.dataset.restartSource,
+      sourceRestartButton.dataset.referenceIndex,
+      sourceRestartButton.dataset.referenceContext || "detail",
+    );
     return;
   }
 
   const detailReferenceButton = event.target.closest("[data-detail-reference]");
   if (detailReferenceButton) {
+    const context = detailReferenceButton.dataset.referenceContext || "detail";
     stopReferencePlayback();
-    detailReferenceIndex = Number(detailReferenceButton.dataset.detailReference);
-    renderCardDetail();
+    if (context === "training") {
+      trainingReferenceIndex = Number(detailReferenceButton.dataset.detailReference);
+    } else {
+      detailReferenceIndex = Number(detailReferenceButton.dataset.detailReference);
+    }
+    renderActiveReferenceContext(context);
     return;
   }
 
-  if (event.target.closest("[data-reference-prev]")) {
+  const previousReferenceButton = event.target.closest("[data-reference-prev]");
+  if (previousReferenceButton) {
+    const context = previousReferenceButton.dataset.referenceContext || "detail";
     stopReferencePlayback();
-    detailReferenceIndex = Math.max(0, detailReferenceIndex - 1);
-    renderCardDetail();
+    if (context === "training") {
+      trainingReferenceIndex = Math.max(0, trainingReferenceIndex - 1);
+    } else {
+      detailReferenceIndex = Math.max(0, detailReferenceIndex - 1);
+    }
+    renderActiveReferenceContext(context);
     return;
   }
 
-  if (event.target.closest("[data-reference-next]")) {
+  const nextReferenceButton = event.target.closest("[data-reference-next]");
+  if (nextReferenceButton) {
+    const context = nextReferenceButton.dataset.referenceContext || "detail";
     stopReferencePlayback();
-    detailReferenceIndex += 1;
-    renderCardDetail();
+    if (context === "training") {
+      trainingReferenceIndex += 1;
+    } else {
+      detailReferenceIndex += 1;
+    }
+    renderActiveReferenceContext(context);
     return;
   }
 
