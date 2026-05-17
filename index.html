@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Musical Vocabulary</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Main navigation">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">MV</span>
+          <div>
+            <h1>Musical Vocabulary</h1>
+            <p>Personal ear training library</p>
+          </div>
+        </div>
+
+        <nav class="nav-list" aria-label="App sections">
+          <button class="nav-item active" type="button" data-view="home">Home</button>
+          <button class="nav-item" type="button" data-view="train">Train</button>
+          <button class="nav-item" type="button" data-view="cards">Cards</button>
+          <button class="nav-item" type="button" data-view="lists">Lists</button>
+          <button class="nav-item" type="button" data-view="add-card">Add Card</button>
+          <button class="nav-item" type="button" data-view="settings">Settings</button>
+        </nav>
+      </aside>
+
+      <main class="main-content">
+        <section class="view active" id="home" aria-labelledby="home-title">
+          <div class="page-heading">
+            <p class="eyebrow">Dashboard</p>
+            <h2 id="home-title">Today</h2>
+          </div>
+
+          <div class="empty-state" id="home-empty">
+            <h3>No cards yet</h3>
+            <p>Add a chord progression card, then train it from a list.</p>
+            <button class="primary-action" type="button" data-jump-to="add-card">Add a card</button>
+          </div>
+          <div class="preview-section" id="home-preview" hidden>
+            <h3>Starter cards</h3>
+            <div class="card-grid compact" id="home-card-preview"></div>
+          </div>
+        </section>
+
+        <section class="view" id="train" aria-labelledby="train-title">
+          <div class="page-heading">
+            <p class="eyebrow">Session</p>
+            <h2 id="train-title">Train</h2>
+          </div>
+          <div class="panel training-setup">
+            <div>
+              <h3>Recognition session</h3>
+              <p>Choose a list, listen first, then reveal the answer and self-grade.</p>
+            </div>
+            <div class="form-row">
+              <label for="training-list">List</label>
+              <select id="training-list"></select>
+            </div>
+            <p class="status-message" id="training-list-note" role="status">Choose a list to train.</p>
+            <button class="primary-action" type="button" id="start-training">Start session</button>
+          </div>
+        </section>
+
+        <section class="view session-view" id="session" aria-labelledby="session-title">
+          <div class="session-topbar">
+            <button class="session-link" type="button" id="finish-session">Finish</button>
+            <span id="training-progress">1 of 1</span>
+            <button class="session-link" type="button" id="show-card-details">Details</button>
+          </div>
+
+          <div class="training-card" id="training-card" hidden>
+            <div class="training-prompt">
+              <p class="eyebrow">Recognition</p>
+              <h2 id="session-title">Listen first</h2>
+              <p id="training-prompt-title">Play the card, name it in your head, then reveal.</p>
+            </div>
+            <div class="training-actions">
+              <button class="audio-toggle large" type="button" id="training-play" data-play-card="" aria-label="Play training card" title="Play">&#9654;</button>
+              <button class="secondary-action compact-action" type="button" id="orient-key">Orient Key</button>
+              <button class="secondary-action" type="button" id="reveal-answer">Reveal</button>
+            </div>
+            <div class="session-progress-strip" id="session-progress-strip">
+              <div class="session-progress-copy">
+                <strong id="session-progress-state">2 to pass</strong>
+                <span id="session-progress-percent">0%</span>
+              </div>
+              <div class="session-progress-track" aria-hidden="true">
+                <span id="session-progress-fill"></span>
+              </div>
+              <div class="session-progress-counts" aria-label="Current wake round results">
+                <span class="wrong">X <strong id="session-wrong-count">0</strong></span>
+                <span class="correct">&check; <strong id="session-correct-count">0</strong></span>
+                <span class="later">&rarr; <strong id="session-later-count">0</strong></span>
+              </div>
+            </div>
+            <div class="answer-panel" id="answer-panel" hidden>
+              <div>
+                <h3 id="answer-title"></h3>
+                <p id="answer-aliases"></p>
+              </div>
+              <div class="chord-row" id="answer-chords"></div>
+              <div class="grade-row">
+                <button class="grade-button wrong" type="button" data-grade="wrong" aria-label="Wrong">X</button>
+                <button class="grade-button later" type="button" data-grade="later" aria-label="Later">&rarr;</button>
+                <button class="grade-button correct" type="button" data-grade="correct" aria-label="Correct">&check;</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel details-panel" id="session-details" hidden>
+            <h3>Card details</h3>
+            <p>Full card details, source video, and playback settings will live here.</p>
+          </div>
+        </section>
+
+        <section class="view" id="cards" aria-labelledby="cards-title">
+          <div class="page-heading">
+            <p class="eyebrow">Library</p>
+            <h2 id="cards-title">Cards</h2>
+          </div>
+          <div class="card-grid" id="card-library"></div>
+        </section>
+
+        <section class="view" id="card-detail" aria-labelledby="card-detail-title">
+          <div class="detail-topbar">
+            <button class="secondary-action" type="button" id="card-detail-back">Back</button>
+          </div>
+          <div id="card-detail-content"></div>
+        </section>
+
+        <section class="view" id="lists" aria-labelledby="lists-title">
+          <div class="page-heading">
+            <p class="eyebrow">Collections</p>
+            <h2 id="lists-title">Lists</h2>
+          </div>
+          <div class="list-grid" id="list-library"></div>
+          <div class="list-detail" id="list-detail" hidden></div>
+        </section>
+
+        <section class="view" id="add-card" aria-labelledby="add-card-title">
+          <div class="page-heading">
+            <p class="eyebrow">Wizard</p>
+            <h2 id="add-card-title">Add Card</h2>
+          </div>
+          <div class="panel wizard-panel">
+            <div class="wizard-progress" id="wizard-progress"></div>
+            <div id="wizard-step"></div>
+            <div class="button-row wizard-actions">
+              <button class="secondary-action" type="button" id="wizard-back">Back</button>
+              <button class="primary-action" type="button" id="wizard-next">Next</button>
+            </div>
+            <p class="status-message" id="add-card-status" role="status"></p>
+          </div>
+        </section>
+
+        <section class="view" id="settings" aria-labelledby="settings-title">
+          <div class="page-heading">
+            <p class="eyebrow">Preferences</p>
+            <h2 id="settings-title">Settings</h2>
+          </div>
+          <div class="panel">
+            <h3>Global options</h3>
+            <p>Choose how many more correct answers than wrong answers a live card needs before it sleeps.</p>
+            <div class="form-row">
+              <label for="sleep-target-setting">Correct answers needed to sleep</label>
+              <select id="sleep-target-setting">
+                <option value="1">1 more correct than wrong</option>
+                <option value="2">2 more correct than wrong</option>
+                <option value="3">3 more correct than wrong</option>
+              </select>
+            </div>
+          </div>
+          <div class="panel">
+            <h3>Allowed playback keys</h3>
+            <p>Cards with random key enabled will choose from these keys.</p>
+            <div class="settings-key-grid" id="settings-keys"></div>
+          </div>
+          <div class="panel cloud-panel">
+            <h3>Cloud sync</h3>
+            <p>Log in to sync your library across phone, tablet, and computer.</p>
+            <div class="cloud-auth" id="cloud-signed-out">
+              <div class="form-grid">
+                <div class="form-row">
+                  <label for="cloud-email">Email</label>
+                  <input id="cloud-email" type="email" autocomplete="email" />
+                </div>
+                <div class="form-row">
+                  <label for="cloud-password">Password</label>
+                  <input id="cloud-password" type="password" autocomplete="current-password" />
+                </div>
+              </div>
+              <div class="button-row">
+                <button class="primary-action" type="button" id="cloud-login">Log in</button>
+                <button class="secondary-action" type="button" id="cloud-signup">Create account</button>
+              </div>
+            </div>
+            <div class="cloud-auth" id="cloud-signed-in" hidden>
+              <p class="cloud-user" id="cloud-user"></p>
+              <div class="button-row">
+                <button class="primary-action" type="button" id="cloud-sync-now">Sync now</button>
+                <button class="secondary-action" type="button" id="cloud-logout">Log out</button>
+              </div>
+            </div>
+            <p class="status-message" id="cloud-status" role="status">Cloud sync not connected.</p>
+          </div>
+          <div class="panel backup-panel">
+            <h3>Library backup</h3>
+            <p>Export your cards, lists, settings, and progress as a JSON backup, or import a backup to restore them.</p>
+            <div class="button-row">
+              <button class="secondary-action" type="button" id="export-library">Export JSON</button>
+              <label class="secondary-action file-action" for="import-library">Import JSON</label>
+              <input id="import-library" type="file" accept="application/json,.json" />
+            </div>
+            <p class="status-message" id="storage-status" role="status">Storage ready.</p>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
