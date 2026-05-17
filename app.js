@@ -2824,7 +2824,60 @@ function getLiveCardsForList(list) {
   return list.cardIds
     .map((cardId) => library.cards.find((card) => card.id === cardId))
     .filter(Boolean)
-    .filter((card) => isCardLive(card, "recognition"));
+    .filter((card) => isCardLive(card, "recognition"))
+    .sort((a, b) => getTrainingPriorityScore(a) - getTrainingPriorityScore(b));
+}
+
+function getTrainingPriorityScore(card) {
+  const progress = getVisibleProgress(card, "recognition");
+  const wakeProgress = getWakeProgressPercent(progress);
+  const toPass = getToPass(progress);
+  const lastReviewedAgeHours = getHoursSince(progress.lastReviewedAt);
+  const recentlyWrong = progress.lastGrade === "wrong" ? getRecentGradeBoost(progress.lastGradeAt, 60) : 0;
+  const recentlyLater = progress.lastGrade === "later" ? getRecentGradeBoost(progress.lastGradeAt, 28) : 0;
+  const wrongPressure = progress.wakeWrongCount * 45;
+  const laterPressure = progress.wakeLaterCount * 14;
+  const lapsePressure = Math.min(progress.lapses || 0, 8) * 5;
+  const newCardPenalty = progress.lastReviewedAt ? 0 : -12;
+  const reviewedRecentlyPenalty = Number.isFinite(lastReviewedAgeHours)
+    ? Math.max(0, 6 - lastReviewedAgeHours) * 2
+    : 0;
+
+  return (
+    wakeProgress -
+    toPass * 10 -
+    recentlyWrong -
+    recentlyLater -
+    wrongPressure -
+    laterPressure -
+    lapsePressure -
+    newCardPenalty +
+    reviewedRecentlyPenalty
+  );
+}
+
+function getRecentGradeBoost(dateValue, maxBoost) {
+  const hoursSince = getHoursSince(dateValue);
+
+  if (!Number.isFinite(hoursSince)) {
+    return 0;
+  }
+
+  return Math.max(0, maxBoost - hoursSince * 2);
+}
+
+function getHoursSince(dateValue) {
+  if (!dateValue) {
+    return Number.POSITIVE_INFINITY;
+  }
+
+  const timestamp = new Date(dateValue).getTime();
+
+  if (Number.isNaN(timestamp)) {
+    return Number.POSITIVE_INFINITY;
+  }
+
+  return (Date.now() - timestamp) / 36e5;
 }
 
 function isCardLive(card, direction) {
